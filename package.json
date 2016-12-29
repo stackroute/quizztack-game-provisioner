@@ -1,0 +1,22 @@
+{
+  "name": "Quizztack",
+  "version": "0.1.0",
+  "description": "App for provisioning the games",
+  "main": "index.js",
+  "scripts": {
+    "start": "node provisioner.js"
+  },
+  "contributors": [
+    {
+      "name": "Kirti Jalan",
+      "email": "kirtijalan194@gmail.com"
+    }
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "redis": "^2.6.3"
+  },
+  "dependencies": {
+    "redis": "^2.6.3"
+  }
+}
