@@ -7,7 +7,7 @@ function initializeGame(gameId,questions,users,playerScores, callback)
 
 	async.parallel([
 
-			(inetrnalCallback) => {
+			(internalCallback) => {
 				client.set(gameId+"_questions",JSON.stringify(questions),function(err,reply)
 				{
 					console.log('questions', questions);
@@ -28,7 +28,7 @@ function initializeGame(gameId,questions,users,playerScores, callback)
 			}, (internalCallback) => {
 				client.set("scores",JSON.stringify(playerScores),function(err,reply)
 				{
-					console.log("scores", scores);
+					console.log("scores", playerScores);
 					internalCallback(null);
 				});
 			}], function(error, results) {
