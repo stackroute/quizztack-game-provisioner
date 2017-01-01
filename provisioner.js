@@ -33,6 +33,9 @@ function getMessage() {
 function getUserFromQueue (gameId, internalCallback) {
   gameClient.brpop('provisionerWorkQueue',0, (err2, reply2) => {
     console.log(reply2);
+    redisClient.LLEN('provisionerWorkQueue',function(error,length){
+        console.log('Length of Provioner Work Queue  :', length);
+    });
     let userData = JSON.parse(reply2[1]);
     redisClient.publish(userData.email+"_gameId",gameId, (err) => {
       if(err) { console.log('ERR:', err); return; }
@@ -47,6 +50,9 @@ function processMessage(message, callback) {
   console.log('Message Received:',message);
   redisClient.lpush('provisionerWorkQueue',message, function(err1, reply1) {
     console.log('players in queued Player', reply1);
+    redisClient.LLEN('provisionerWorkQueue',function(error,length){
+        console.log('Length of Provioner Work Queue 2  :', length);
+    });
     let playerScores = [0, 0, 0];
     let questions = "question Start spreading the news, I’m leaving today” are the opening lines of which song?";
     let userinfo=[];
