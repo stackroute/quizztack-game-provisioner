@@ -65,7 +65,7 @@ function initializeGame(gameId, players, callback) {
     if(err) { callback(err); return; }
     const state = {
       scores: scores,
-      questions: JSON.stringify(questions),
+      questions: questions,
       cue: scores[0].player,
       currQuestion: false
     };
