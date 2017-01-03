@@ -13,9 +13,6 @@
     }
   ],
   "license": "MIT",
-  "devDependencies": {
-    "redis": "^2.6.3"
-  },
   "dependencies": {
     "async": "^2.1.4",
     "redis": "^2.6.3"

@@ -213,7 +213,7 @@ initializeGame("abc",[
 					"Douglas",
 					"Jones"
 		]}],
-
-	["srini","vishant","lal jose"],[0,0,0]);
-
-
+		[{player: 'kirtijalan@gmail.com', score: 0},{player: 'sagarpatke@gmail.com', score: 1000},{player:'nischaygoyal@gmail.com', score: 0}], (err) => {
+			if(err) { process.exit(-1); }
+			console.log('Game data for game abc initialized');
+		});

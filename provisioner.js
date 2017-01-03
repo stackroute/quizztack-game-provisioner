@@ -1,16 +1,10 @@
-var redis = require('redis');
-var gameInitializer = require('./initializingGame/initializeGame')
-const redisUrl = process.env.REDIS_URL || "localhost";
-const redisPort = process.env.REDIS_PORT || "6379";
-var redisClient = redis.createClient(redisPort, process.env.REDIS_HOSTNAME);
-var gameClient = redis.createClient(redisPort, process.env.REDIS_HOSTNAME);
-console.log('redisUrl:', redisUrl);
-console.log('redisPort:', redisPort);
+var redisClient = require('./services/getRedisClient');
 const async = require('async');
-// var playerList = [];
+const getClues = require('./services/getClues');
+const saveState = require('./services/saveState');
 
 redisClient.on("error", (err) => {
-  console.log('Error:',err);
+  handleError(err);
 });
 
 redisClient.on("ready", () => {
@@ -21,66 +15,92 @@ function getMessage() {
   console.log('Waiting for message');
   redisClient.brpop('provisionerInputQueue', 0, (err, reply) => {
     if(err) { console.log('ERR:',err); process.exit(-1); }
-    console.log('Received Message');
+    console.log('Received Message: ', reply[1]);
     processMessage(reply[1], (err) => {
-      if(err) { return redisClient.lpush('provisionerWorkQueue', reply[1]); }
-      console.log('Processing Complete', reply[1]);
+      if(err) { handleError(err); console.error('ERR:', err); return; }
+      console.log('Processing Complete: ', reply[1]);
       setTimeout(getMessage);
     });
   });
 }
 
-function getUserFromQueue (gameId, internalCallback) {
-  gameClient.brpop('provisionerWorkQueue',0, (err2, reply2) => {
-    console.log(reply2);
-    redisClient.LLEN('provisionerWorkQueue',function(error,length){
-        console.log('Length of Provioner Work Queue  :', length);
-    });
-    let userData = JSON.parse(reply2[1]);
-    redisClient.publish(userData.email+"_gameId",gameId, (err) => {
-      if(err) { console.log('ERR:', err); return; }
-      internalCallback(null, userData);
-    });
+function processMessage(player, callback) {
+  queuePlayer(player, (err, noOfPlayersInQueue) => {
+    if(err) { handleError(err); return; }
+    if(noOfPlayersInQueue >= 3) { bootstrapGame(callback); return; }
+    setTimeout(callback);
   });
-};
+}
 
-function processMessage(message, callback) {
-  console.log('Message Received:', message);
-  console.log('Processing:', message);
-  console.log('Message Received:',message);
-  redisClient.lpush('provisionerWorkQueue',message, function(err1, reply1) {
-    console.log('players in queued Player', reply1);
-    redisClient.LLEN('provisionerWorkQueue',function(error,length){
-        console.log('Length of Provioner Work Queue 2  :', length);
-    });
-    let playerScores = [0, 0, 0];
-    let questions = "question Start spreading the news, I’m leaving today” are the opening lines of which song?";
-    let userinfo=[];
-      if(reply1 >= 3) {
-          //assign game id and redirect
-          var gameId = Math.round(Math.random()*1000000);
-          async.waterfall([
-            (internalCallback) => {
-              getUserFromQueue(gameId, internalCallback);
-            }, (userData, internalCallback) => {
-              userinfo.push(userData);
-              getUserFromQueue(gameId, internalCallback);
-            }, (userData, internalCallback) => {
-              userinfo.push(userData);
-              getUserFromQueue(gameId, internalCallback);
-            },(userData, internalCallback) => {
-              userinfo.push(userData);
-              internalCallback(null);
-            }, (internalCallback) => {
-              gameInitializer(gameId, questions, userinfo, playerScores, internalCallback);
-            }
-           ], function(error, results) {
-             console.log("async series finished");
-             callback(null);
-          });
-      }
-      else {
-        callback(null);
-      }
+function bootstrapGame(callback) {
+  const gameId = 'game-' + Math.floor(100*Math.random());
+  async.waterfall([
+    getPlayerFromQueue.bind(null, []),
+    getPlayerFromQueue,
+    getPlayerFromQueue,
+    initializeGame.bind(null, gameId),
+    sendGameIdToPlayers.bind(null, gameId)
+  ],(err, players) => {
+    if(err) { handleError(err); reQueuePlayers(players, callback); return; }
+    setTimeout(callback);
   });
+}
+
+function reQueuePlayers(players, callback) {
+  async.each(players, reQueuePlayer, callback);
+}
+
+function reQueuePlayer(player, callback) {
+  redisClient.rpush('playerQueue', player, callback);
+}
+
+function initializeGame(gameId, players, callback) {
+  const scores = players.map((player) => {
+    const score = { player: player, score: 0 };
+    if(player === 'sagarpatke@gmail.com' || player === 'nischaygoyal@gmail.com') score.score = 100;
+    return score;
+  });
+
+  getClues((err, questions) => {
+    if(err) { callback(err); return; }
+    const state = {
+      scores: scores,
+      questions: JSON.stringify(questions),
+      cue: scores[0].player,
+      currQuestion: false
+    };
+    saveState(gameId, state, (err) => {
+      callback(err, players);
+    });
+  });
+}
+
+function sendGameIdToPlayers(gameId, players, callback) {
+  console.log('Sending gameId', gameId, 'to players:', players);
+  async.each(players,(player, callback1) => {
+    redisClient.publish(player+'_gameId', gameId, callback1);
+  }, callback);
+}
+
+function getPlayerFromQueue(players, callback) {
+  redisClient.brpop('playerQueue', 1, (err, reply) => {
+    if(err) { callback(err); }
+    if(!reply) { callback(new Error("Timed Out"), players); }
+    players.push(reply[1]);
+    callback(null, players);
+  });
+}
+
+function queuePlayer(playerId, callback) {
+  redisClient.lrange('playerQueue', 0,-1,(err, reply) => {
+    if(err) { callback(err); return; }
+    const isPlayerAlreadyQueued = reply.indexOf(playerId);
+    if(!isPlayerAlreadyQueued) { console.log('player ' + playerId + ' already exists in playerQueue', reply); callback(null, reply.length); }
+    else { console.log('player ' + playerId + ' doesnt exist in playerQueue', reply); redisClient.lpush('playerQueue', playerId, callback); }
+  });
+}
+
+function handleError(err) {
+  console.error('ERR:', err);
+  throw new Error(err);
 }
